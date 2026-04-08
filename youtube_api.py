@@ -302,6 +302,13 @@ class VideoCard(QFrame):
         self.img.setPixmap(QPixmap.fromImage(pix))
 
 class YoutubeDownloader(QMainWindow):
+    def get_version():
+        try:
+            version_path = resource_path("version.txt")
+            with open(version_path, "r") as f:
+                return f.read().strip()
+        except:
+            return "2.0.0" # Versión por defecto si falla la lectura
     def __init__(self):
         super().__init__(); self.setStyleSheet(GRAPHENE_STYLE)
         self.setWindowTitle("Yotube Downloader - V2")
@@ -320,7 +327,19 @@ class YoutubeDownloader(QMainWindow):
             # Llama automáticamente a la búsqueda para traer la siguiente página
                 self.search()
 
+    def get_version(self):
+        """Lee la versión desde version.txt"""
+        try:
+            v_path = resource_path("version.txt")
+            with open(v_path, "r") as f:
+                return f.read().strip()
+        except:
+            return "v1.0.0"
+
     def init_ui(self):
+            # Obtener versión antes de armar la UI
+            self.current_version = self.get_version()
+            
             central_widget = QWidget()
             self.setCentralWidget(central_widget)
             hbox_main = QHBoxLayout(central_widget)
@@ -335,27 +354,38 @@ class YoutubeDownloader(QMainWindow):
             vbox_sidebar.setContentsMargins(20, 20, 20, 20)
             vbox_sidebar.setSpacing(15)
 
-# --- CONTENEDOR DE TÍTULO Y LOGO ---
+            # --- CONTENEDOR DE TÍTULO Y LOGO ---
             title_container = QWidget()
             title_container.setObjectName("TitleContainer")
             hbox_title = QHBoxLayout(title_container)
             hbox_title.setContentsMargins(0, 0, 0, 0)
             hbox_title.setSpacing(10)
 
-            # El texto del título
+            # Contenedor vertical para Título + Versión
+            vbox_text_title = QVBoxLayout()
+            vbox_text_title.setSpacing(2)
+
             lbl_title = QLabel("Youtube Downloader")
             lbl_title.setObjectName("SidebarTitle")
+            lbl_title.setStyleSheet("margin-bottom: 0px;") # Ajuste para que no se separe tanto de la versión
+            
+            # Label de Versión
+            lbl_v_display = QLabel(f"Build: {self.current_version}")
+            lbl_v_display.setStyleSheet("color: #007acc; font-family: 'Consolas'; font-size: 10px; font-weight: bold;")
+
+            vbox_text_title.addWidget(lbl_title)
+            vbox_text_title.addWidget(lbl_v_display)
             
             # El Logo
             lbl_logo = QLabel()
-            logo_path = resource_path("youtube_logo.png") # Asegúrate de que el nombre coincida
+            logo_path = resource_path("youtube_logo.png")
             if os.path.exists(logo_path):
-                pix_logo = QPixmap(logo_path).scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pix_logo = QPixmap(logo_path).scaled(60, 60, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 lbl_logo.setPixmap(pix_logo)
             
-            hbox_title.addWidget(lbl_title)
+            hbox_title.addLayout(vbox_text_title)
+            hbox_title.addStretch()
             hbox_title.addWidget(lbl_logo)
-            hbox_title.addStretch() # Empuja todo hacia la izquierda
             
             vbox_sidebar.addWidget(title_container)
 
@@ -409,7 +439,6 @@ class YoutubeDownloader(QMainWindow):
             self.list = QListWidget()
             self.list.setSelectionMode(QAbstractItemView.SingleSelection)
             self.list.itemSelectionChanged.connect(self.load_q)
-            # Conexión vital para el scroll infinito:
             self.list.verticalScrollBar().valueChanged.connect(self.check_scroll)
             hbox_main.addWidget(self.list, 1)
     def sel_path(self):
