@@ -1,0 +1,9 @@
+PySide6==6.7.0
+pytubefix==6.1.2
+google-api-python-client==2.126.0
+moviepy==2.0.0.dev2
+proglog==0.1.10
+requests==2.31.0
+isodate==0.6.1
+python-dotenv==1.0.1
+psutil==5.9.8

@@ -1,0 +1,19 @@
+# Entorno virtual
+venv/
+env/
+
+# Archivos de compilación y ejecutables
+build/
+dist/
+*.exe
+*.spec
+
+# Variables sensibles (Tu API KEY)
+.env
+
+# Cache de Python
+__pycache__/
+*.pyc
+
+# Multimedia local (opcional, si quieres que otros usen sus propios iconos)
+# Si quieres que el diseño se mantenga, puedes NO ignorar los .png e .ico
