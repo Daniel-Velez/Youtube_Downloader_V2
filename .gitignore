@@ -5,7 +5,7 @@ env/
 # Archivos de compilación y ejecutables
 build/
 dist/
-*.exe
+ffmpeg.exe
 *.spec
 
 # Variables sensibles (Tu API KEY)
