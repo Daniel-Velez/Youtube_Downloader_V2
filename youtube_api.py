@@ -330,11 +330,9 @@ class YoutubeDownloader(QMainWindow):
     def get_version(self):
         """Lee la versión desde version.txt"""
         try:
-            v_path = resource_path("version.txt")
-            with open(v_path, "r") as f:
-                return f.read().strip()
-        except:
             return "v1.0.0"
+        except:
+            Exception("No se pudo leer la versión. Asegúrate de que version.txt exista y sea legible.")
 
     def init_ui(self):
             # Obtener versión antes de armar la UI
@@ -489,7 +487,7 @@ class YoutubeDownloader(QMainWindow):
     def done(self, ok, msg):
         self.b_v.setEnabled(True); self.b_a.setEnabled(True); self.pbar.setValue(0)
         self.status.setText("STATUS: IDLE")
-        QMessageBox.information(self, "Yachay", msg) if ok else QMessageBox.critical(self, "Error", msg)
+        QMessageBox.information(self, "Youtube Downloader", msg) if ok else QMessageBox.critical(self, "Error", msg)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv); win = YoutubeDownloader(); win.show(); sys.exit(app.exec())
