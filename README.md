@@ -4,26 +4,24 @@ Una aplicación de escritorio moderna y eficiente construida con Python y PySide
 ✨ Características
 Búsqueda Integrada: Busca videos directamente desde la aplicación sin necesidad de copiar URLs (aunque también las soporta).
 
-Scroll Infinito: Los resultados se cargan dinámicamente a medida que navegas.
+**Scroll Infinito:** Los resultados se cargan dinámicamente a medida que navegas.
 
-Descarga de Listas de Reproducción: Detecta automáticamente si un link pertenece a una playlist y ofrece descargarla completa.
+**Descarga de Listas de Reproducción:** Detecta automáticamente si un link pertenece a una playlist y ofrece descargarla completa.
 
-Cola de Descargas: Gestiona múltiples descargas de forma secuencial. Puedes ver y limpiar la cola en tiempo real.
+**Cola de Descargas:** Gestiona múltiples descargas de forma secuencial. Puedes ver y limpiar la cola en tiempo real.
 
-Selección de Calidad: Carga dinámicamente las resoluciones disponibles para cada video (MP4).
+**Selección de Calidad:** Carga dinámicamente las resoluciones disponibles para cada video (MP4).
 
-Conversión a MP3: Extrae audio de alta calidad (192kbps) de forma automática.
+**Conversión a MP3:** Extrae audio de alta calidad (192kbps) de forma automática.
 
-Aceleración por Hardware: Detecta automáticamente si tienes NVIDIA (NVENC) para optimizar procesos de FFmpeg.
+**Actualizaciones Automáticas:** El sistema verifica si hay una nueva versión en el repositorio y permite actualizar el ejecutable con un solo clic.
 
-Actualizaciones Automáticas: El sistema verifica si hay una nueva versión en el repositorio y permite actualizar el ejecutable con un solo clic.
-
-🚀 Requisitos
+##**🚀 Requisitos**
 Para ejecutar el código fuente o realizar modificaciones, necesitarás:
 
-Python 3.8+
+-Python 3.8+
 
-FFmpeg instalado en el sistema y añadido al PATH (necesario para la conversión de audio y fusión de video HQ).
+-FFmpeg instalado en el sistema y añadido al PATH (necesario para la conversión de audio y fusión de video HQ).
 
 ## 🛠️ Instalación
 1. Clona el repositorio.
@@ -40,10 +38,10 @@ Resultados: Tarjetas visuales con miniatura, duración y selector de calidad.
 Barra de Progreso: Visualización del estado actual de la descarga en curso.
 
 ## 📝 Notas de Versión (v2.0.0)
-Migración completa a yt-dlp para búsquedas más rápidas.
+-Migración completa a yt-dlp para búsquedas más rápidas.
 
-Uso de pytubefix para mayor estabilidad con los cambios de la API de YouTube.
+-Uso de pytubefix para mayor estabilidad con los cambios de la API de YouTube.
 
-Implementación de hilos (QThread) para evitar que la interfaz se congele.
+-Implementación de hilos (QThread) para evitar que la interfaz se congele.
 
-Desarrollado por Daniel Vélez 🚀
+Desarrollado por [Daniel Vélez 🚀](https://github.com/Daniel-Velez)
