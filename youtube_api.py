@@ -420,6 +420,39 @@ class YoutubeDownloader(QMainWindow):
         
         main_lyt.addWidget(sidebar); main_lyt.addWidget(self.result_list, 1)
 
+    def upgrade_and_restart(self, download_url):
+        try:
+            self.status_lbl.setText("Descargando actualización...")
+            
+            # 1. Descargar el nuevo binario
+            response = requests.get(download_url, stream=True)
+            new_exe_path = "update_temp.exe"
+            current_exe = sys.executable # Ruta del .exe actual
+            
+            with open(new_exe_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            # 2. Crear el script .bat para el intercambio
+            # Este script espera, borra el viejo, renombra el nuevo y lo abre.
+            bat_path = "updater.bat"
+            with open(bat_path, "w") as f:
+                f.write(f"""
+                @echo off
+                timeout /t 2 /nobreak > nul
+                del /f /q "{current_exe}"
+                ren "update_temp.exe" "{os.path.basename(current_exe)}"
+                start "" "{current_exe}"
+                del "%~f0"
+                """)
+
+            # 3. Ejecutar el bat y cerrar la app actual
+            subprocess.Popen(["cmd", "/c", bat_path], shell=True)
+            sys.exit()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo actualizar: {e}")
+        
     def remove_from_queue(self, item):
         """Elimina un video de la cola si el usuario hace doble clic."""
         row = self.queue_list_widget.row(item)
@@ -454,14 +487,30 @@ class YoutubeDownloader(QMainWindow):
         if folder: self.download_path = folder; self.path_display.setText(f"RUTA:\n{folder}")
 
     def check_updates(self):
-        # Lógica de actualización movida al hilo principal para evitar errores de UI
-        try:
-            url_txt = "https://raw.githubusercontent.com/Daniel-Velez/Youtube_Downloader_V2/main/version.txt"
-            res = requests.get(url_txt, timeout=3)
-            if res.status_code == 200 and res.text.strip() != "2.0.0":
-                if QMessageBox.question(self, "Actualización", "Nueva versión disponible. ¿Descargar?", QMessageBox.Yes|QMessageBox.No) == QMessageBox.Yes:
-                    webbrowser.open("https://github.com/Daniel-Velez/Youtube_Downloader_V2/releases")
-        except: pass
+            try:
+                # 1. URL de tu archivo version.txt (Debe estar en la raíz de tu repo)
+                url_txt = "https://raw.githubusercontent.com/Daniel-Velez/Youtube_Downloader_V2/main/version.txt"
+                res = requests.get(url_txt, timeout=3)
+                
+                # Cambia "2.1.0" por la versión actual de tu script
+                version_actual = "2.0.0" 
+                
+                if res.status_code == 200 and res.text.strip() != version_actual:
+                    resp = QMessageBox.question(
+                        self, "Actualización disponible", 
+                        f"Hay una nueva versión disponible ({res.text.strip()}).\n\n"
+                        "¿Deseas descargarla e instalarla automáticamente?",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+                    
+                    if resp == QMessageBox.Yes:
+                        # URL al ejecutable en el release "latest"
+                        # Asegúrate de que el archivo subido a GitHub se llame YouTube_Downloader_V2.exe
+                        exe_url = "https://github.com/Daniel-Velez/Youtube_Downloader_V2/releases/latest/download/YouTube_Downloader_V2.exe"
+                        self.upgrade_and_restart(exe_url)
+            except Exception as e:
+                print(f"Error al buscar actualizaciones: {e}")
+            except: pass
 
     def start_search(self):
             q = self.search_input.text().strip()
