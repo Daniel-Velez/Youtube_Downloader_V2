@@ -421,46 +421,51 @@ class YoutubeDownloader(QMainWindow):
         main_lyt.addWidget(sidebar); main_lyt.addWidget(self.result_list, 1)
 
     def upgrade_and_restart(self, download_url):
-            """Maneja la descarga y el reemplazo del ejecutable portable."""
             try:
                 self.status_lbl.setText("Descargando actualización...")
-                
-                # Detectamos la ruta del .exe actual
                 ruta_actual = sys.executable
                 nombre_exe = os.path.basename(ruta_actual)
                 directorio_actual = os.path.dirname(ruta_actual)
-                
-                # Ruta temporal para el nuevo archivo
                 ruta_nueva = os.path.join(directorio_actual, "update_temp.exe")
-                
-                # Descarga del nuevo binario
+
+                # Descarga
                 response = requests.get(download_url, stream=True)
-                response.raise_for_status() # Lanza error si la descarga falla
-                
                 with open(ruta_nueva, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
 
-                # Script .bat para intercambiar los archivos
-                # Nota: usamos comillas dobles en las rutas por si hay espacios en el nombre de usuario
+                # --- SCRIPT .BAT MEJORADO ---
                 bat_path = os.path.join(directorio_actual, "updater.bat")
                 with open(bat_path, "w") as f:
                     f.write(f"""
                     @echo off
-                    timeout /t 2 /nobreak > nul
-                    del /f /q "{ruta_actual}"
+                    title Actualizando...
+                    echo Esperando a que el programa se cierre...
+                    
+                    :: Intenta cerrar el proceso por si acaso sigue vivo
+                    taskkill /F /IM "{nombre_exe}" /T > nul 2>&1
+                    
+                    :: Bucle de espera hasta que el archivo sea borrable
+                    :loop
+                    timeout /t 1 /nobreak > nul
+                    del /f /q "{ruta_actual}" > nul 2>&1
+                    if exist "{ruta_actual}" goto loop
+
+                    :: Renombrar y relanzar
                     ren "{ruta_nueva}" "{nombre_exe}"
                     start "" "{ruta_actual}"
+                    
+                    :: Auto-eliminación del bat
                     del "%~f0"
                     """)
 
-                # Ejecutar el proceso de actualización y cerrar la app
+                # Lanzar y cerrar app
                 subprocess.Popen(["cmd", "/c", bat_path], shell=True)
-                QApplication.quit()
-                sys.exit()
+                QApplication.quit() # Cierre limpio de Qt
+                sys.exit(0) # Salida forzada del proceso
 
             except Exception as e:
-                QMessageBox.critical(self, "Error de Actualización", f"No se pudo instalar la nueva versión: {e}")
+                QMessageBox.critical(self, "Error", f"No se pudo actualizar: {e}")
         
     def remove_from_queue(self, item):
         """Elimina un video de la cola si el usuario hace doble clic."""
