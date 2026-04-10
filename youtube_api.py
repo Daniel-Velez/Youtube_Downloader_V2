@@ -419,53 +419,6 @@ class YoutubeDownloader(QMainWindow):
         self.result_list.verticalScrollBar().valueChanged.connect(self.handle_scroll)
         
         main_lyt.addWidget(sidebar); main_lyt.addWidget(self.result_list, 1)
-
-    def upgrade_and_restart(self, download_url):
-            try:
-                self.status_lbl.setText("Descargando actualización...")
-                ruta_actual = sys.executable
-                nombre_exe = os.path.basename(ruta_actual)
-                directorio_actual = os.path.dirname(ruta_actual)
-                ruta_nueva = os.path.join(directorio_actual, "update_temp.exe")
-
-                # Descarga
-                response = requests.get(download_url, stream=True)
-                with open(ruta_nueva, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-                # --- SCRIPT .BAT MEJORADO ---
-                bat_path = os.path.join(directorio_actual, "updater.bat")
-                with open(bat_path, "w") as f:
-                    f.write(f"""
-                    @echo off
-                    title Actualizando...
-                    echo Esperando a que el programa se cierre...
-                    
-                    :: Intenta cerrar el proceso por si acaso sigue vivo
-                    taskkill /F /IM "{nombre_exe}" /T > nul 2>&1
-                    
-                    :: Bucle de espera hasta que el archivo sea borrable
-                    :loop
-                    timeout /t 1 /nobreak > nul
-                    del /f /q "{ruta_actual}" > nul 2>&1
-                    if exist "{ruta_actual}" goto loop
-
-                    :: Renombrar y relanzar
-                    ren "{ruta_nueva}" "{nombre_exe}"
-                    start "" "{ruta_actual}"
-                    
-                    :: Auto-eliminación del bat
-                    del "%~f0"
-                    """)
-
-                # Lanzar y cerrar app
-                subprocess.Popen(["cmd", "/c", bat_path], shell=True)
-                QApplication.quit() # Cierre limpio de Qt
-                sys.exit(0) # Salida forzada del proceso
-
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo actualizar: {e}")
         
     def remove_from_queue(self, item):
         """Elimina un video de la cola si el usuario hace doble clic."""
@@ -501,30 +454,34 @@ class YoutubeDownloader(QMainWindow):
         if folder: self.download_path = folder; self.path_display.setText(f"RUTA:\n{folder}")
 
     def check_updates(self):
-        """Verifica si la versión en GitHub es diferente a la local."""
-        try:
-            url_txt = "https://raw.githubusercontent.com/Daniel-Velez/Youtube_Downloader_V2/main/version.txt"
-            res = requests.get(url_txt, timeout=3)
-            
-            # IMPORTANTE: Cambia este número cada vez que lances una versión
-            version_actual = "2.0.1" 
-            
-            if res.status_code == 200:
-                version_remota = res.text.strip()
-                if version_remota != version_actual:
-                    resp = QMessageBox.question(
-                        self, "Actualización Disponible", 
-                        f"Se ha encontrado la versión {version_remota}. ¿Deseas actualizar ahora?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
+            """Comprueba la versión y abre el navegador para descarga manual."""
+            try:
+                import time
+                # Bypass de caché para leer siempre el valor real de GitHub
+                url_txt = f"https://raw.githubusercontent.com/Daniel-Velez/Youtube_Downloader_V2/main/version.txt?t={int(time.time())}"
+                res = requests.get(url_txt, timeout=3)
+                
+                # ESTA VERSIÓN DEBE COINCIDIR CON LA DEL .TXT PARA QUE NO SALTE EL AVISO
+                version_actual = "2.0.1" 
+                
+                if res.status_code == 200:
+                    version_remota = res.text.strip()
                     
-                    if resp == QMessageBox.Yes:
-                        # URL constante al último release público
-                        exe_url = "https://github.com/Daniel-Velez/Youtube_Downloader_V2/releases/latest/download/YouTube_Downloader_V2.exe"
-                        self.upgrade_and_restart(exe_url)
-        except:
-            pass # Falla silenciosa si no hay internet o el repo es privado todavía
-
+                    if version_remota != version_actual:
+                        msg = (f"¡Nueva versión disponible! ({version_remota})\n\n"
+                            f"Tu versión actual: {version_actual}\n"
+                            "¿Deseas ir a la página de descargas?")
+                        
+                        resp = QMessageBox.question(
+                            self, "Actualización", msg, 
+                            QMessageBox.Yes | QMessageBox.No
+                        )
+                        
+                        if resp == QMessageBox.Yes:
+                            # Abre la página de releases directamente
+                            webbrowser.open("https://github.com/Daniel-Velez/Youtube_Downloader_V2/releases/latest")
+            except:
+                pass
     def start_search(self):
             q = self.search_input.text().strip()
             if not q: return
