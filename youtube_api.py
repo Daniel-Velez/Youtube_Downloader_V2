@@ -502,7 +502,7 @@ class YoutubeDownloader(QMainWindow):
             res = requests.get(url_txt, timeout=3)
             
             # IMPORTANTE: Cambia este número cada vez que lances una versión
-            version_actual = "2.0.0" 
+            version_actual = "2.0.1" 
             
             if res.status_code == 200:
                 version_remota = res.text.strip()
