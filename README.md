@@ -1,8 +1,9 @@
 ﻿## 📺 YouTube Downloader V2
 Una aplicación de escritorio moderna y eficiente construida con Python y PySide6 para buscar y descargar videos o audio de YouTube. Esta versión incluye una interfaz inspirada en el modo oscuro de YouTube ("Graphene Style"), soporte para colas de descarga y aceleración por hardware.
 
-✨ Características
-Búsqueda Integrada: Busca videos directamente desde la aplicación sin necesidad de copiar URLs (aunque también las soporta).
+## 🚀 Requisitos
+
+**Búsqueda Integrada:** Busca videos directamente desde la aplicación sin necesidad de copiar URLs (aunque también las soporta).
 
 **Scroll Infinito:** Los resultados se cargan dinámicamente a medida que navegas.
 
@@ -16,7 +17,11 @@ Búsqueda Integrada: Busca videos directamente desde la aplicación sin necesida
 
 **Actualizaciones Automáticas:** El sistema verifica si hay una nueva versión en el repositorio y permite actualizar el ejecutable con un solo clic.
 
-##**🚀 Requisitos**
+## 🛠️ Instalación
+1. Clona el repositorio.
+2. Crea un entorno virtual: `python -m venv venv`.
+3. Instala dependencias: `pip install -r requirements.txt`.
+4. Usa la aplicación.
 Para ejecutar el código fuente o realizar modificaciones, necesitarás:
 
 -Python 3.8+
@@ -44,4 +49,5 @@ Barra de Progreso: Visualización del estado actual de la descarga en curso.
 
 -Implementación de hilos (QThread) para evitar que la interfaz se congele.
 
-Desarrollado por [Daniel Vélez 🚀](https://github.com/Daniel-Velez)
+## 🛠️ Desarrollado Por:
+[Daniel Vélez] (https://github.com/Daniel-Velez)
