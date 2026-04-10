@@ -39,7 +39,7 @@ Resultados: Tarjetas visuales con miniatura, duración y selector de calidad.
 
 Barra de Progreso: Visualización del estado actual de la descarga en curso.
 
-📝 Notas de Versión (v2.0.0)
+## 📝 Notas de Versión (v2.0.0)
 Migración completa a yt-dlp para búsquedas más rápidas.
 
 Uso de pytubefix para mayor estabilidad con los cambios de la API de YouTube.
