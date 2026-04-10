@@ -30,14 +30,16 @@ Para ejecutar el código fuente o realizar modificaciones, necesitarás:
 2. Crea un entorno virtual: `python -m venv venv`.
 3. Instala dependencias: `pip install -r requirements.txt`.
 4. Usa la aplicación.
-   
+
+## 📸 Interfaz
+
 La interfaz utiliza un diseño Graphene Style personalizado:
 
-Sidebar: Control de búsqueda, cambio de carpeta de destino y gestión de la cola.
+**Sidebar:** Control de búsqueda, cambio de carpeta de destino y gestión de la cola.
 
-Resultados: Tarjetas visuales con miniatura, duración y selector de calidad.
+**Resultados:** Tarjetas visuales con miniatura, duración y selector de calidad.
 
-Barra de Progreso: Visualización del estado actual de la descarga en curso.
+**Barra de Progreso:** Visualización del estado actual de la descarga en curso.
 
 ## 📝 Notas de Versión (v2.0.0)
 -Migración completa a yt-dlp para búsquedas más rápidas.
