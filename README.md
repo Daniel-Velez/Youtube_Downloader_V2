@@ -1,5 +1,4 @@
-﻿📺 YouTube Downloader V2
- 
+﻿## 📺 YouTube Downloader V2
 Una aplicación de escritorio moderna y eficiente construida con Python y PySide6 para buscar y descargar videos o audio de YouTube. Esta versión incluye una interfaz inspirada en el modo oscuro de YouTube ("Graphene Style"), soporte para colas de descarga y aceleración por hardware.
 
 ✨ Características
