@@ -5,6 +5,7 @@ import sqlite3
 import requests
 import webbrowser
 import ctypes
+import collections
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QPushButton,
                                QLineEdit, QListWidget, QWidget, QMessageBox, QLabel,
@@ -30,8 +31,13 @@ MAX_THUMBNAIL_CACHE = 200
 # ==========================================
 # BASE DE DATOS
 # ==========================================
+db_conn = None
+
 def get_db_connection():
-    return sqlite3.connect("history.db", check_same_thread=False)
+    global db_conn
+    if db_conn is None:
+        db_conn = sqlite3.connect("history.db", check_same_thread=False)
+    return db_conn
 
 def init_db():
     with get_db_connection() as conn:
@@ -739,7 +745,8 @@ class YoutubeDownloader(QMainWindow):
         self.last_query = ""
         self.download_queue = []
         self.is_downloading = False
-        self.thumbnail_cache = {}
+        self.thumbnail_cache = collections.OrderedDict()
+        self.qualities_cache = {}
 
         self.search_thr = None
         self.q_thr = None
@@ -754,8 +761,11 @@ class YoutubeDownloader(QMainWindow):
 
     # ── CACHÉ LIMITADO ───────────────────────────────────────────────────
     def safe_cache_thumbnail(self, url, content):
+        if url in self.thumbnail_cache:
+            self.thumbnail_cache.move_to_end(url)
+            return
         if len(self.thumbnail_cache) >= MAX_THUMBNAIL_CACHE:
-            del self.thumbnail_cache[next(iter(self.thumbnail_cache))]
+            self.thumbnail_cache.popitem(last=False)
         self.thumbnail_cache[url] = content
 
     # ── ACTUALIZACIÓN ────────────────────────────────────────────────────
@@ -779,6 +789,12 @@ class YoutubeDownloader(QMainWindow):
         msg.exec()
         if msg.clickedButton() == yes:
             webbrowser.open(url)
+
+    def closeEvent(self, event):
+        global db_conn
+        if db_conn:
+            db_conn.close()
+        super().closeEvent(event)
 
     # ── UI ───────────────────────────────────────────────────────────────
     def init_ui(self):
@@ -1109,12 +1125,20 @@ class YoutubeDownloader(QMainWindow):
             return
         card = self.result_list.itemWidget(item)
         if card and not card.q_ready:
+            if card.url in self.qualities_cache:
+                self._fill_combo(card, self.qualities_cache[card.url])
+                return
+
             self._stop_thread('q_thr')
             card.combo.clear()
             card.combo.addItem("Cargando...", None)
             self.q_thr = QualityLoader(card.url)
-            self.q_thr.qualities_ready.connect(lambda q: self._fill_combo(card, q))
+            self.q_thr.qualities_ready.connect(lambda q: self._on_qualities_loaded(card, q))
             self.q_thr.start()
+
+    def _on_qualities_loaded(self, card, qualities):
+        self.qualities_cache[card.url] = qualities
+        self._fill_combo(card, qualities)
 
     def _fill_combo(self, card, qualities):
         try:
