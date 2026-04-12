@@ -9,6 +9,7 @@ ffmpeg.exe
 *.spec
 *.exe
 *.dll
+*db
 # Variables sensibles (Tu API KEY)
 .env
 
