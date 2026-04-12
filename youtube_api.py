@@ -24,7 +24,7 @@ import platformdirs
 # ==========================================
 # CONFIGURACIÓN DE VERSIÓN Y GITHUB
 # ==========================================
-CURRENT_VERSION = "2.1.1"
+CURRENT_VERSION = "2.1.2"
 GITHUB_REPO = "Daniel-Velez/Youtube_Downloader_V2"
 MAX_THUMBNAIL_CACHE = 200
 
@@ -207,30 +207,55 @@ class YtDlpSearchEngine(QThread):
 
     def run(self):
         is_link = "http" in self.query
+        # Detectamos si es un link de playlist o un mix
+        is_playlist_link = is_link and ("list=" in self.query or "/playlist" in self.query)
+        
         sq = self.query if is_link else f"ytsearch100:{self.query}"
+        
         opts = {
             'quiet': True, 
             'extract_flat': True, 
             'skip_download': True, 
-            'noplaylist': True,
+            # Si es un link de playlist, NO activamos noplaylist para que traiga los videos
+            'noplaylist': not is_playlist_link,
             'ignoreerrors': True,
             'no_warnings': True
         }
-        if not is_link:
+        
+        # Si es búsqueda por texto o una playlist, manejamos la paginación/carga
+        if not is_link or is_playlist_link:
             opts['playlist_items'] = f"{self.start_index+1}-{self.start_index+20}"
+            
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 res = ydl.extract_info(sq, download=False)
                 if res:
-                    entries = res.get('entries') if 'entries' in res else [res]
+                    # Si es una playlist, las entradas están en 'entries'
+                    # Si es un video único, lo metemos en una lista para el loop
+                    if 'entries' in res:
+                        entries = res['entries']
+                    else:
+                        entries = [res]
+
                     for e in (entries or []):
                         if not e:
                             continue
-                        url = e.get('webpage_url') or e.get('original_url') or e.get('url')
-                        if not url and e.get('id'):
-                            url = f"https://www.youtube.com/watch?v={e['id']}"
-                        thumb = e.get('thumbnails', [{}])[-1].get('url', '')
+                            
+                        # yt-dlp a veces devuelve IDs en lugar de URLs completas en modo flat
+                        v_id = e.get('id')
+                        url = e.get('webpage_url') or e.get('url')
+                        if not url and v_id:
+                            url = f"https://www.youtube.com/watch?v={v_id}"
+                        
+                        # Fallback para miniaturas
+                        thumb = ""
+                        if e.get('thumbnails'):
+                            thumb = e.get('thumbnails')[-1].get('url', '')
+                        elif v_id:
+                            thumb = f"https://i.ytimg.com/vi/{v_id}/hqdefault.jpg"
+
                         dur = e.get('duration', 0) or 0
+                        
                         self.video_found.emit({
                             'titulo': e.get('title', 'Sin título'),
                             'url': url,
@@ -312,6 +337,7 @@ class DownloadWorker(QThread):
     def __init__(self, url, tipo, format_id, path, titulo, parent=None):
         super().__init__(parent)
         self.url = url
+        self.is_playlist = "list=" in url
         self.tipo = tipo
         self.format_id = format_id
         self.path = path
@@ -319,6 +345,7 @@ class DownloadWorker(QThread):
         self.titulo = sanitized if sanitized else "descarga_sin_titulo"
         self._is_paused = False
         self._is_cancelled = False
+        
 
     def stop(self): self._is_cancelled = True
     def toggle_pause(self):
@@ -328,16 +355,28 @@ class DownloadWorker(QThread):
     def run(self):
         try:
             has_ffprobe = os.path.exists(resource_path('ffprobe.exe'))
+            
+            # Detectamos si el link es una playlist o un mix
+            is_playlist = "list=" in self.url
+            
+            # Definimos la plantilla de salida: 
+            # Si es playlist: Carpeta_Playlist/Titulo_Video.ext
+            # Si es video: Titulo_Video.ext
+            if is_playlist:
+                template = os.path.join(self.path, "%(playlist_title)s", "%(title)s.%(ext)s")
+            else:
+                template = os.path.join(self.path, f"{self.titulo}.%(ext)s")
+
             opts = {
                 'ffmpeg_location': resource_path('ffmpeg.exe'),
-                'outtmpl': os.path.join(self.path, f"{self.titulo}.%(ext)s"),
+                'outtmpl': template,
                 'quiet': True, 
                 'no_warnings': True, 
                 'noprogress': True,
-                # --- ⚡ CORRECCIÓN DE PLAYLISTS ⚡ ---
-                'noplaylist': True,        # Ignora la lista si el link es un Mix
-                'playlist_items': '1',     # Solo toma el primer elemento (el video actual)
-                # ------------------------------------
+                # --- ⚡ MODIFICACIÓN DE PLAYLISTS ⚡ ---
+                'noplaylist': False if is_playlist else True,
+                'playlist_items': None if is_playlist else '1', 
+                # ---------------------------------------
                 'progress_hooks': [self.progress_hook],
                 'postprocessors': [],
             }
@@ -352,25 +391,30 @@ class DownloadWorker(QThread):
             if self.tipo == "audio":
                 opts['format'] = 'bestaudio/best'
                 opts['postprocessors'].insert(0, {
-                    'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'
+                    'key': 'FFmpegExtractAudio', 
+                    'preferredcodec': 'mp3', 
+                    'preferredquality': '192'
                 })
             else:
-                # Priorizamos m4a para compatibilidad total con Windows (no Opus)
+                # Priorizamos m4a para compatibilidad total con Windows
                 fmt = f"{self.format_id}+bestaudio[ext=m4a]/{self.format_id}+bestaudio/best" if self.format_id \
                     else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
                 
                 opts['format'] = fmt
                 opts['merge_output_format'] = 'mp4'
 
-            self.status.emit("Iniciando descarga...")
+            self.status.emit("Iniciando descarga..." if not is_playlist else "Iniciando lista...")
+            
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([self.url])
 
+            # Para el historial y el mensaje final
             ext = "mp3" if self.tipo == "audio" else "mp4"
-            final = os.path.join(self.path, f"{self.titulo}.{ext}")
+            final_path = self.path if is_playlist else os.path.join(self.path, f"{self.titulo}.{ext}")
             
             if not self._is_cancelled:
-                self.finished_dl.emit(True, final)
+                self.finished_dl.emit(True, f"Guardado en: {final_path}")
+                
         except Exception as e:
             if self._is_cancelled:
                 self.finished_dl.emit(False, "Descarga cancelada.")
@@ -528,14 +572,6 @@ class VideoCard(QFrame):
         )
         self.dur_badge.raise_()
 
-        # Badge duración sobre miniatura
-        self.dur_badge = QLabel(data['duracion'], thumb_container)
-        self.dur_badge.setStyleSheet(
-            "background-color: rgba(0,0,0,0.82); color: #ffffff; "
-            "font-size: 11px; font-weight: 700; "
-            "font-family: 'Consolas','Courier New',monospace; "
-            "padding: 2px 7px; border-radius: 4px;"
-        )
         self.dur_badge.adjustSize()
         self.dur_badge.move(
             186 - self.dur_badge.width() - 7,
@@ -1058,24 +1094,54 @@ class YoutubeDownloader(QMainWindow):
     def _stop_thread(self, attr):
         t = getattr(self, attr, None)
         if t and t.isRunning():
+            # 1. Desconectamos todas las señales para que no intenten 
+            # actualizar la UI si el hilo termina tarde.
+            try:
+                t.disconnect()
+            except:
+                pass
+            
+            # 2. Pedimos que se detenga
             t.quit()
-            t.wait(2000)
+            
+            # 3. En lugar de un wait corto que puede fallar, 
+            # usamos una lista de 'limpieza' para mantener la referencia viva
+            # hasta que el hilo realmente muera por su cuenta.
+            if not hasattr(self, '_cleanup_threads'):
+                self._cleanup_threads = []
+            
+            self._cleanup_threads.append(t)
+            
+            # 4. Limpiamos la lista de referencias muertas periódicamente
+            t.finished.connect(lambda: self._cleanup_threads.remove(t) if t in self._cleanup_threads else None)
+            
+            # 5. Ponemos la referencia principal en None inmediatamente
+            setattr(self, attr, None)
 
     # ── BÚSQUEDA ─────────────────────────────────────────────────────────
     def start_search(self):
         q = self.search_input.text().strip()
-        if not q:
-            return
+        if not q: return
 
-        # --- ⚡ LIMPIEZA DE ENLACES (Anti-Mix/Playlist) ⚡ ---
-        # Si es un link de video pero viene con parámetros de lista, los cortamos
-        # Esto previene errores de extracción en links tipo Mix de YouTube
-        if "youtube.com/watch?v=" in q and "&list=" in q:
-            q = q.split("&list=")[0]
-        # ----------------------------------------------------
+        # Detectar si es una Playlist
+        if "list=" in q:
+            reply = QMessageBox.question(
+                self, "Lista de reproducción detectada",
+                "Has pegado un enlace de lista. ¿Deseas cargar la lista completa?\n\n"
+                "(Si seleccionas 'No', solo se buscará el video individual)",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                # Quitamos la restricción de limpiar el link para que yt-dlp lea la lista
+                self.last_query = q 
+            else:
+                # Limpiamos el link para obtener solo el video (comportamiento actual)
+                self.last_query = q.split("&list=")[0]
+        else:
+            self.last_query = q
 
         self.result_list.clear()
-        self.last_query = q
         self.current_page = 0
         self._execute_search()
 
