@@ -16,6 +16,7 @@ from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 import yt_dlp
 from plyer import notification
+import jaraco.text  # <-- Forzar detección para PyInstaller
 
 # ==========================================
 # CONFIGURACIÓN DE VERSIÓN Y GITHUB
