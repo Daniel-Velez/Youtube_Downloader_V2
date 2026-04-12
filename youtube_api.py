@@ -202,7 +202,14 @@ class YtDlpSearchEngine(QThread):
     def run(self):
         is_link = "http" in self.query
         sq = self.query if is_link else f"ytsearch100:{self.query}"
-        opts = {'quiet': True, 'extract_flat': True, 'skip_download': True, 'noplaylist': True}
+        opts = {
+            'quiet': True, 
+            'extract_flat': True, 
+            'skip_download': True, 
+            'noplaylist': True,
+            'ignoreerrors': True,
+            'no_warnings': True
+        }
         if not is_link:
             opts['playlist_items'] = f"{self.start_index+1}-{self.start_index+20}"
         try:
@@ -241,7 +248,13 @@ class QualityLoader(QThread):
 
     def run(self):
         try:
-            opts = {'quiet': True, 'skip_download': True, 'no_warnings': True, 'noplaylist': True}
+            opts = {
+                'quiet': True, 
+                'skip_download': True, 
+                'no_warnings': True, 
+                'noplaylist': True,
+                'extract_flat': 'in_playlist' # Ayuda a ignorar el resto de la lista
+            }
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(self.url, download=False)
                 q_list, seen = [], set()
@@ -312,24 +325,34 @@ class DownloadWorker(QThread):
             opts = {
                 'ffmpeg_location': resource_path('ffmpeg.exe'),
                 'outtmpl': os.path.join(self.path, f"{self.titulo}.%(ext)s"),
-                'quiet': True, 'no_warnings': True, 'noprogress': True,
-                'noplaylist': True, 'progress_hooks': [self.progress_hook],
+                'quiet': True, 
+                'no_warnings': True, 
+                'noprogress': True,
+                # --- ⚡ CORRECCIÓN DE PLAYLISTS ⚡ ---
+                'noplaylist': True,        # Ignora la lista si el link es un Mix
+                'playlist_items': '1',     # Solo toma el primer elemento (el video actual)
+                # ------------------------------------
+                'progress_hooks': [self.progress_hook],
                 'postprocessors': [],
             }
+
             if has_ffprobe:
                 opts['writethumbnail'] = True
                 opts['postprocessors'].extend([
                     {'key': 'FFmpegMetadata', 'add_metadata': True},
                     {'key': 'EmbedThumbnail', 'already_have_thumbnail': False},
                 ])
+
             if self.tipo == "audio":
                 opts['format'] = 'bestaudio/best'
                 opts['postprocessors'].insert(0, {
                     'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'
                 })
             else:
-                fmt = f"{self.format_id}+bestaudio/best" if self.format_id \
+                # Priorizamos m4a para compatibilidad total con Windows (no Opus)
+                fmt = f"{self.format_id}+bestaudio[ext=m4a]/{self.format_id}+bestaudio/best" if self.format_id \
                     else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+                
                 opts['format'] = fmt
                 opts['merge_output_format'] = 'mp4'
 
@@ -339,6 +362,7 @@ class DownloadWorker(QThread):
 
             ext = "mp3" if self.tipo == "audio" else "mp4"
             final = os.path.join(self.path, f"{self.titulo}.{ext}")
+            
             if not self._is_cancelled:
                 self.finished_dl.emit(True, final)
         except Exception as e:
@@ -1026,6 +1050,14 @@ class YoutubeDownloader(QMainWindow):
         q = self.search_input.text().strip()
         if not q:
             return
+
+        # --- ⚡ LIMPIEZA DE ENLACES (Anti-Mix/Playlist) ⚡ ---
+        # Si es un link de video pero viene con parámetros de lista, los cortamos
+        # Esto previene errores de extracción en links tipo Mix de YouTube
+        if "youtube.com/watch?v=" in q and "&list=" in q:
+            q = q.split("&list=")[0]
+        # ----------------------------------------------------
+
         self.result_list.clear()
         self.last_query = q
         self.current_page = 0
