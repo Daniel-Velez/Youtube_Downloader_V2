@@ -9,6 +9,7 @@ import collections
 import subprocess
 import tempfile
 import shutil
+import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -81,9 +82,11 @@ def get_db_connection():
 
 def init_db():
     with get_db_connection() as conn:
+        # Modificamos la tabla de descargas para incluir el username
         conn.execute("""
             CREATE TABLE IF NOT EXISTS downloads (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
                 title TEXT NOT NULL,
                 type TEXT NOT NULL,
                 url TEXT,
@@ -92,34 +95,72 @@ def init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON downloads(date DESC)")
+        
+        # Nueva tabla para usuarios
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
 
-def add_to_history(title: str, tipo: str, url: str = "", file_path: str = ""):
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def register_user(username: str, password: str) -> bool:
     try:
         with get_db_connection() as conn:
             conn.execute(
-                "INSERT INTO downloads (title, type, url, file_path) VALUES (?, ?, ?, ?)",
-                (title, tipo, url, file_path)
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                (username, hash_password(password))
+            )
+        return True
+    except sqlite3.IntegrityError:
+        return False  # El usuario ya existe
+
+def verify_user(username: str, password: str) -> bool:
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT password_hash FROM users WHERE username = ?",
+                (username,)
+            )
+            row = cursor.fetchone()
+            if row and row[0] == hash_password(password):
+                return True
+            return False
+    except sqlite3.Error as e:
+        print(f"Error verificando usuario: {e}")
+        return False
+
+def add_to_history(username: str, title: str, tipo: str, url: str = "", file_path: str = ""):
+    try:
+        with get_db_connection() as conn:
+            conn.execute(
+                "INSERT INTO downloads (username, title, type, url, file_path) VALUES (?, ?, ?, ?, ?)",
+                (username, title, tipo, url, file_path)
             )
     except sqlite3.Error as e:
         print(f"Error guardando historial: {e}")
 
-def get_recent_history(limit: int = 100) -> List[Tuple]:
+def get_recent_history(username: str, limit: int = 100) -> List[Tuple]:
     try:
         with get_db_connection() as conn:
             cursor = conn.execute(
-                "SELECT title, type, date, url, file_path FROM downloads ORDER BY id DESC LIMIT ?",
-                (limit,)
+                "SELECT title, type, date, url, file_path FROM downloads WHERE username = ? OR username IS NULL ORDER BY id DESC LIMIT ?",
+                (username, limit)
             )
             return cursor.fetchall()
     except sqlite3.Error as e:
         print(f"Error leyendo historial: {e}")
         return []
 
-def clear_history():
+def clear_history(username: str):
     try:
         with get_db_connection() as conn:
-            conn.execute("DELETE FROM downloads")
-            conn.execute("DELETE FROM sqlite_sequence WHERE name='downloads'")
+            conn.execute("DELETE FROM downloads WHERE username = ?", (username,))
     except sqlite3.Error as e:
         print(f"Error limpiando historial: {e}")
 
@@ -147,9 +188,9 @@ def sanitize_filename(filename: str, max_length: int = 200) -> str:
 # ESTILOS (sin cambios, mantener igual)
 # ==========================================
 PREMIUM_DARK_STYLE = """
+    QMainWindow, QDialog { background-color: #0d0d12; }
     QMainWindow { background-color: #0d0d12; }
     QWidget { font-family: 'Segoe UI', sans-serif; color: #e2e2e5; }
-
     QFrame#Sidebar {
         background-color: #111118;
         border-right: 1px solid #1e1e2a;
@@ -293,6 +334,18 @@ PREMIUM_DARK_STYLE = """
         background: #2a3e3e; 
         color: #ff4757;
     }
+    QPushButton#btnPrimary {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #00c8e0, stop:1 #0099bb);
+    border: none; color: #050a0c; font-weight: 800; border-radius: 10px;
+    }
+    QPushButton#btnPrimary:hover {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #33d4ed, stop:1 #00b0cc);
+    }
+    QPushButton#btnSecondary {
+    background: transparent;
+    border: 2px solid #252535; color: #e2e2e5; font-weight: 800; border-radius: 10px;
+    }
+    QPushButton#btnSecondary:hover { border-color: #00e5ff; color: #00e5ff; }
 """
 
 PREMIUM_LIGHT_STYLE = """
@@ -444,6 +497,103 @@ PREMIUM_LIGHT_STYLE = """
         color: #ff3b30; 
     }
 """
+
+# ==========================================
+# DIÁLOGO DE LOGIN
+# ==========================================
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Dynatube - Iniciar Sesión")
+        self.setFixedSize(400, 520) # Aumenté un poco el alto para que quepa el nuevo botón
+        self.setStyleSheet(PREMIUM_DARK_STYLE)
+        self.logged_in_user = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(15) # Reduje un poco el espaciado
+
+        # Logo
+        logo = QLabel("⚡")
+        logo.setStyleSheet("font-size: 60px; font-weight: bold; color: #00e5ff;")
+        logo.setAlignment(Qt.AlignCenter)
+        layout.addWidget(logo)
+
+        title = QLabel("Bienvenido a Dynatube")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        layout.addSpacing(10)
+
+        # Inputs
+        self.txt_username = QLineEdit()
+        self.txt_username.setPlaceholderText("Nombre de usuario")
+        self.txt_username.setFixedHeight(45)
+        layout.addWidget(self.txt_username)
+
+        self.txt_password = QLineEdit()
+        self.txt_password.setPlaceholderText("Contraseña")
+        self.txt_password.setEchoMode(QLineEdit.Password)
+        self.txt_password.setFixedHeight(45)
+        layout.addWidget(self.txt_password)
+
+        layout.addSpacing(10)
+
+        # Botones Principales
+        self.btn_login = QPushButton("INICIAR SESIÓN")
+        self.btn_login.setObjectName("btnPrimary")
+        self.btn_login.setFixedHeight(45)
+        self.btn_login.clicked.connect(self.attempt_login)
+        layout.addWidget(self.btn_login)
+
+        self.btn_register = QPushButton("CREAR CUENTA")
+        self.btn_register.setObjectName("btnSecondary")
+        self.btn_register.setFixedHeight(45)
+        self.btn_register.clicked.connect(self.attempt_register)
+        layout.addWidget(self.btn_register)
+
+        # --- NUEVO BOTÓN DE INVITADO ---
+        self.btn_guest = QPushButton("Continuar sin cuenta")
+        self.btn_guest.setFixedHeight(30)
+        self.btn_guest.setCursor(Qt.PointingHandCursor)
+        self.btn_guest.setStyleSheet("""
+            QPushButton { background: transparent; border: none; color: #8080a0; font-weight: bold; }
+            QPushButton:hover { color: #00e5ff; text-decoration: underline; }
+        """)
+        self.btn_guest.clicked.connect(self.attempt_guest)
+        layout.addWidget(self.btn_guest, alignment=Qt.AlignCenter)
+
+    def attempt_login(self):
+        user = self.txt_username.text().strip()
+        pwd = self.txt_password.text().strip()
+
+        if not user or not pwd:
+            QMessageBox.warning(self, "Error", "Por favor, llena ambos campos.")
+            return
+
+        if verify_user(user, pwd):
+            self.logged_in_user = user
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos.")
+
+    def attempt_register(self):
+        user = self.txt_username.text().strip()
+        pwd = self.txt_password.text().strip()
+
+        if not user or not pwd:
+            QMessageBox.warning(self, "Error", "Por favor, llena ambos campos para registrarte.")
+            return
+
+        if register_user(user, pwd):
+            QMessageBox.information(self, "Éxito", "Cuenta creada. Ahora puedes iniciar sesión.")
+        else:
+            QMessageBox.warning(self, "Error", "Ese nombre de usuario ya existe.")
+
+    def attempt_guest(self):
+        self.logged_in_user = "Invitado"
+        self.accept()
 
 # ==========================================
 # TARJETA DE HISTORIAL
@@ -1121,15 +1271,16 @@ class VideoCard(QFrame):
 # VENTANA PRINCIPAL OPTIMIZADA
 # ==========================================
 class YoutubeDownloader(QMainWindow):
-    def __init__(self):
+    def __init__(self, username: str):
         super().__init__()
+        self.current_user = username if username else "Invitado"
         init_db()
         init_temp_dir()
         cleanup_temp_thumbs(24)  # Limpia miniaturas de más de 24 horas
         
         self.is_dark_mode = True 
         self.setStyleSheet(PREMIUM_DARK_STYLE)
-        self.setWindowTitle(f"Dynatube Pro  —  {CURRENT_VERSION}")
+        self.setWindowTitle(f"Dynatube Pro — {CURRENT_VERSION} | Usuario: {self.current_user}")
         
         self.setMinimumSize(1480, 800) 
         self.resize(1500, 850)
@@ -1452,7 +1603,7 @@ class YoutubeDownloader(QMainWindow):
 
     def load_history(self):
         self.hist_list.clear()
-        records = get_recent_history(100)
+        records = get_recent_history(self.current_user, 100)
         for row in records:
             title, tipo, date, url, file_path = row
             emoji = "🎵" if tipo == "audio" else "🎬"
@@ -1715,7 +1866,7 @@ class YoutubeDownloader(QMainWindow):
             except Exception:
                 pass
             
-            add_to_history(task['titulo'], task['tipo'], task['url'], msg)
+            add_to_history(self.current_user, task['titulo'], task['tipo'], task['url'], msg)
 
             # Remover de lista y registros
             item = self.tasks[tid]['list_item']
@@ -1831,7 +1982,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))
 
-    window = YoutubeDownloader()
-    window.show() 
-    
-    sys.exit(app.exec())
+    # 1. Inicializar base de datos primero
+    init_db()
+
+    # 2. Lanzar la ventana de Login
+    login_dialog = LoginDialog()
+    if login_dialog.exec() == QDialog.Accepted:
+        # 3. Solo si el login es exitoso, abrimos la aplicación principal
+        window = YoutubeDownloader(username=login_dialog.logged_in_user)
+        window.show() 
+        sys.exit(app.exec())
+    else:
+        # Si el usuario cierra la ventana de login, la app termina
+        sys.exit(0)
